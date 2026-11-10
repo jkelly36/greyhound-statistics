@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Greyhound results</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 16px/1.4 system-ui, sans-serif; max-width: 860px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 1.4rem; margin: 8px 0 16px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; }
+  select { font: inherit; padding: 4px 6px; max-width: 100%; }
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid color-mix(in srgb, currentColor 18%, transparent); white-space: nowrap; }
+  th { font-weight: 600; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  #status { opacity: .7; margin: 8px 0; }
+</style>
+</head>
+<body>
+<h1>Greyhound results</h1>
+
+<div class="controls">
+  <label>Date <select id="day"></select></label>
+  <label>Track <select id="track"></select></label>
+</div>
+<div id="status">Loading…</div>
+
+<div class="scroll">
+  <table>
+    <thead>
+      <tr><th>Time</th><th>Track</th><th>Race</th><th>Winner</th><th class="num">BSP</th></tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+</div>
+
+<script>
+const daySelect = document.getElementById("day");
+const trackSelect = document.getElementById("track");
+const tbody = document.getElementById("rows");
+const statusLine = document.getElementById("status");
+let races = [];
+
+function option(value, label) {
+  const el = document.createElement("option");
+  el.value = value;
+  el.textContent = label;
+  return el;
+}
+
+function render() {
+  const track = trackSelect.value;
+  const shown = races.filter(r => !track || r[1] === track);
+  tbody.replaceChildren(...shown.map(r => {
+    const tr = document.createElement("tr");
+    r.forEach((value, i) => {
+      const td = document.createElement("td");
+      td.textContent = value;
+      if (i === 4) td.className = "num";
+      tr.append(td);
+    });
+    return tr;
+  }));
+  statusLine.textContent = shown.length + (shown.length === 1 ? " race" : " races");
+}
+
+async function loadDay() {
+  statusLine.textContent = "Loading…";
+  try {
+    const response = await fetch("data/" + daySelect.value + ".json");
+    if (!response.ok) throw new Error(response.status);
+    races = await response.json();
+  } catch (error) {
+    races = [];
+    tbody.replaceChildren();
+    statusLine.textContent = "Couldn't load results for this date.";
+    return;
+  }
+  const tracks = [...new Set(races.map(r => r[1]))].sort();
+  trackSelect.replaceChildren(option("", "All tracks"), ...tracks.map(t => option(t, t)));
+  render();
+}
+
+async function start() {
+  try {
+    const response = await fetch("data/days.json");
+    if (!response.ok) throw new Error(response.status);
+    const days = await response.json();
+    daySelect.replaceChildren(...days.map(d => option(d, d)));
+  } catch (error) {
+    statusLine.textContent = "Couldn't load the list of dates.";
+    return;
+  }
+  daySelect.addEventListener("change", loadDay);
+  trackSelect.addEventListener("change", render);
+  loadDay();
+}
+
+start();
+</script>
+</body>
+</html>
